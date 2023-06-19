@@ -1,6 +1,7 @@
 package com.poc.authlib.autoconfiguration;
 
 import com.poc.authlib.common.dto.AuthSystemUserDTO;
+import com.poc.authlib.common.dto.RoleDTO;
 import com.poc.authlib.common.exception.AuthSystemException;
 import com.poc.authlib.common.exception.UnauthorisedAccessException;
 import com.poc.authlib.properties.AuthServiceProperties;
@@ -12,11 +13,11 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.servlet.http.HttpServletRequest;
 
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -72,12 +73,12 @@ public class AuthServiceClient {
 
     private Authentication buildAuth(AuthSystemUserDTO currentUser) {
         return new UsernamePasswordAuthenticationToken(currentUser, null,
-                toAuthorities(currentUser.getPermissions()));
+                toAuthorities(currentUser.getRoles()));
     }
 
-    private Set<GrantedAuthority> toAuthorities(String[] roles) {
-        return Stream.of(roles)
-                .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
+    private Set<GrantedAuthority> toAuthorities(List<RoleDTO> roles) {
+        return roles.stream()
+                .flatMap(permissions -> permissions.getPermissions().stream().distinct())
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toUnmodifiableSet());
     }

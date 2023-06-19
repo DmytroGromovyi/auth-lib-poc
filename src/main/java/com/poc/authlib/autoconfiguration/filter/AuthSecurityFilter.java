@@ -1,7 +1,7 @@
 package com.poc.authlib.autoconfiguration.filter;
 
 import com.poc.authlib.autoconfiguration.AuthServiceClient;
-import com.poc.authlib.properties.ApiPermissionProperties;
+import com.poc.authlib.properties.OpenUrlProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,13 +16,13 @@ import javax.servlet.http.HttpServletResponse;
 @RequiredArgsConstructor
 public final class AuthSecurityFilter extends OncePerRequestFilter {
 
-    private final ApiPermissionProperties apiPermissionProperties;
+    private final OpenUrlProperties openUrlProperties;
     private final AuthServiceClient authServiceClient;
     private final AntPathMatcher antPathMatcher;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return apiPermissionProperties.getWhitelistedEndpoints().stream()
+        return openUrlProperties.getOpenUrls().stream()
                 .anyMatch(u -> antPathMatcher.match(u, request.getRequestURI()));
     }
 

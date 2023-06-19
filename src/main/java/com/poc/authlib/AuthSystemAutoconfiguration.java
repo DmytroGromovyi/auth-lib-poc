@@ -6,12 +6,10 @@ import com.poc.authlib.autoconfiguration.condition.NotSecuredCondition;
 import com.poc.authlib.autoconfiguration.condition.SecuredCondition;
 import com.poc.authlib.autoconfiguration.filter.AuthEntryPoint;
 import com.poc.authlib.autoconfiguration.filter.AuthSecurityFilter;
-import com.poc.authlib.common.enums.Role;
-import com.poc.authlib.common.exception.AuthSystemException;
 import com.poc.authlib.common.supply.AuthorizedUserAuthSupplier;
 import com.poc.authlib.common.supply.AuthorizedUserSupplier;
-import com.poc.authlib.properties.ApiPermissionProperties;
 import com.poc.authlib.properties.AuthServiceProperties;
+import com.poc.authlib.properties.OpenUrlProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -38,10 +36,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 @Slf4j
 @Configuration
@@ -63,7 +57,7 @@ public class AuthSystemAutoconfiguration {
 
 
 	@Configuration
-	@EnableConfigurationProperties({AuthServiceProperties.class, ApiPermissionProperties.class})
+	@EnableConfigurationProperties({AuthServiceProperties.class, OpenUrlProperties.class})
 	@Conditional(SecuredCondition.class)
 	class AuthSystemSecurityConfig {
 
@@ -80,11 +74,11 @@ public class AuthSystemAutoconfiguration {
 
 		@Bean
 		@Primary
-		AuthSecurityFilter securityCheckFilter(ApiPermissionProperties apiPermissionProperties,
+		AuthSecurityFilter securityCheckFilter(OpenUrlProperties openUrlProperties,
 											   AuthServiceClient buildAuthServiceClient) {
 			var antPathMatcher = new AntPathMatcher();
 			antPathMatcher.setCaseSensitive(false);
-			return new AuthSecurityFilter(apiPermissionProperties, buildAuthServiceClient, antPathMatcher);
+			return new AuthSecurityFilter(openUrlProperties, buildAuthServiceClient, antPathMatcher);
 		}
 
 		@Bean
@@ -114,11 +108,11 @@ public class AuthSystemAutoconfiguration {
 
 		private final AuthEntryPoint authEntryPoint;
 		private final AuthSecurityFilter authSecurityFilter;
-		private final ApiPermissionProperties apiPermissionProperties;
+		private final OpenUrlProperties openUrlProperties;
 
 		@Override
 		protected void configure(HttpSecurity http) throws Exception {
-			var whitelistedEndpoints = apiPermissionProperties.getWhitelistedEndpoints().toArray(String[]::new);
+			var whitelistedEndpoints = openUrlProperties.getOpenUrls().toArray(String[]::new);
 
 			var security = http.sessionManagement()
 					.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -131,10 +125,6 @@ public class AuthSystemAutoconfiguration {
 					.formLogin().disable()
 					.httpBasic().disable();
 
-			//customizable api access rules
-			applyCustomAccessRules(security);
-			//common access rules
-
 			security
 					.authorizeRequests().antMatchers(whitelistedEndpoints)
 					.permitAll()
@@ -143,41 +133,6 @@ public class AuthSystemAutoconfiguration {
 					.authenticated();
 		}
 
-		private void applyCustomAccessRules(HttpSecurity security) {
-			var permissionMapByPath = convertKeyUrl();
-			permissionMapByPath.forEach((url, roles) -> grantEndpointsAccess(security, url, roles));
-		}
-
-		private void grantEndpointsAccess(HttpSecurity security, String path, List<Role> roles) {
-			var roleNames = roles.stream().map(Role::getRoleName).toArray(String[]::new);
-			var roleNamesString = String.join(", ", roleNames);
-			try {
-				security.authorizeRequests()
-						.antMatchers(path)
-						.hasAnyRole(roleNames)
-						.and();
-				log.info("Applied custom endpoint access rule: [url: {}, roles: {}]", path, roleNamesString);
-			} catch (Exception ex) {
-				log.error("Can't apply permissions: [{}: {}]", path, roleNamesString);
-				throw new AuthSystemException("Can't apply permissions for path: " + path + ", roles: "
-						+ roleNamesString);
-			}
-		}
-
-		private Map<String, List<Role>> convertKeyUrl() {
-
-			var permissionMapByPath = new TreeMap<String, List<Role>>();
-
-			apiPermissionProperties.getPermissionMap()
-					.forEach((key, value) -> value
-							.forEach(url -> {
-								List<Role> roles = permissionMapByPath.getOrDefault(url, new ArrayList<>());
-								roles.add(key);
-								permissionMapByPath.put(url, roles);
-							}));
-
-			return permissionMapByPath;
-		}
 	}
 
 	@Configuration

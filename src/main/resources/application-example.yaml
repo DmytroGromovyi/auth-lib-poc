@@ -4,28 +4,18 @@
 #    security: ${APP_ENABLE_SECURITY:true}
 #auth:
 #  service:
-#    endpoint: ${CMP_TOKEN_SERVICE}
+#    endpoint: ${PERMISSION_SERVICE}
 #    get-user-path: /user
 #    timeout: 30000
 #    error-message: "{\"errorCode\": 401, \"errorMessage\": \"Please authenticate to use this resource!\"}"
-#api:
-#  permissions:
-#    whitelisted-endpoints:
-#      - /v1/actuator/health
-#      - /actuator/health
-#      - /v1/actuator/info
-#      - /actuator/info
-## NOTE: add this block to your app in order to apply custom API access rules
-#    permission-map:
-#      USER:
-#        - 'Program:Read'
-#        - 'Request:Read'
-#      CUSTOM:
-#        - 'Program:Read'
-#        - 'Request:Edit'
-#      ADMIN:
-#        - 'Program:Read'
-#        - 'Request:Read'
-#        - 'Program:Edit'
-#        - 'Request:Edit'
+
+#security:
+#  urls:
+#    open-urls:
+#      - /swagger-ui.html
+#      - /swagger-ui/**
+#      - /swagger-resources/**
+#      - /v3/api-docs/**
+#      - /favicon.ico
+#      - /actuator/**
 

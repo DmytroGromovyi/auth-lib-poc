@@ -25,11 +25,13 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
@@ -39,6 +41,7 @@ import java.time.Duration;
 @Slf4j
 @Configuration
 @EnableWebSecurity
+@EnableGlobalMethodSecurity(prePostEnabled = true)
 @AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE + 10)
 @ConditionalOnClass({WebClient.class, ObjectMapper.class, Logger.class})
 @ImportAutoConfiguration(AuthExceptionHandlerConfiguration.class)
@@ -77,7 +80,8 @@ public class AuthSystemAutoconfiguration {
 											   AuthServiceClient buildAuthServiceClient) {
 			var antPathMatcher = new AntPathMatcher();
 			antPathMatcher.setCaseSensitive(false);
-			return new AuthSecurityFilter(openUrlProperties, buildAuthServiceClient, antPathMatcher);
+			return new AuthSecurityFilter(openUrlProperties, buildAuthServiceClient, antPathMatcher,
+					new HttpSessionSecurityContextRepository());
 		}
 
 		@Bean

@@ -15,13 +15,17 @@ java {
 	withSourcesJar()
 }
 
-//bootJar {
-//	enabled = false
-//}
-//
-//jar {
-//	enabled = true
-//}
+bootJar {
+	enabled = false
+}
+
+jar {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	enabled = true
+	from {
+		configurations.runtimeClasspath.filter{ it.exists() }.collect { it.isDirectory() ? it : zipTree(it) }
+	}
+}
 
 configurations {
 	compileOnly {

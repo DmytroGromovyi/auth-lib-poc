@@ -30,6 +30,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -99,21 +100,19 @@ public class AuthSystemAutoconfiguration {
 					.baseUrl(authServiceProperties.getEndpoint())
 					.build();
 		}
-	}
 
+	}
 	@Configuration
 	@Order(Ordered.HIGHEST_PRECEDENCE)
+	@Conditional(SecuredCondition.class)
 	@RequiredArgsConstructor
-	class AuthSystemWebSecurityConfig extends WebSecurityConfigurerAdapter {
-
+	public class SecurityConfiguration {
 		private final AuthEntryPoint authEntryPoint;
 		private final AuthSecurityFilter authSecurityFilter;
 		private final OpenUrlProperties openUrlProperties;
-
-		@Override
-		protected void configure(HttpSecurity http) throws Exception {
+		@Bean
+		public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			var whitelistedEndpoints = openUrlProperties.getOpenUrls().toArray(String[]::new);
-
 			var security = http.sessionManagement()
 					.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 					.and()
@@ -131,6 +130,7 @@ public class AuthSystemAutoconfiguration {
 					.and()
 					.authorizeRequests().anyRequest()
 					.authenticated();
+			return http.build();
 		}
 
 	}
@@ -139,10 +139,12 @@ public class AuthSystemAutoconfiguration {
 	@Conditional(NotSecuredCondition.class)
 	@ConditionalOnSingleCandidate(WebSecurityConfigurerAdapter.class)
 	@RequiredArgsConstructor
-	class NotSecuredWebSecurityConfiguration extends WebSecurityConfigurerAdapter {
-
-		@Override
-		protected void configure(HttpSecurity http) throws Exception {
+	public class NonSecurityConfiguration {
+		private final AuthEntryPoint authEntryPoint;
+		private final AuthSecurityFilter authSecurityFilter;
+		private final OpenUrlProperties openUrlProperties;
+		@Bean
+		public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			http
 					.sessionManagement()
 					.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -152,7 +154,7 @@ public class AuthSystemAutoconfiguration {
 					.formLogin().disable()
 					.httpBasic().disable()
 					.authorizeRequests().antMatchers("/**").permitAll();
+			return http.build();
 		}
 	}
-
 }

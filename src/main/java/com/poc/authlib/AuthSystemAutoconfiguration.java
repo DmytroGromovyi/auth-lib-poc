@@ -2,6 +2,7 @@ package com.poc.authlib;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.poc.authlib.autoconfiguration.AuthServiceClient;
+import com.poc.authlib.autoconfiguration.CustomAuthProvider;
 import com.poc.authlib.autoconfiguration.condition.NotSecuredCondition;
 import com.poc.authlib.autoconfiguration.condition.SecuredCondition;
 import com.poc.authlib.autoconfiguration.filter.AuthEntryPoint;
@@ -13,6 +14,7 @@ import com.poc.authlib.properties.OpenUrlProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureOrder;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -25,13 +27,15 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
@@ -41,7 +45,6 @@ import java.time.Duration;
 @Slf4j
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
 @AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE + 10)
 @ConditionalOnClass({WebClient.class, ObjectMapper.class, Logger.class})
 @ImportAutoConfiguration(AuthExceptionHandlerConfiguration.class)
@@ -80,8 +83,13 @@ public class AuthSystemAutoconfiguration {
 											   AuthServiceClient buildAuthServiceClient) {
 			var antPathMatcher = new AntPathMatcher();
 			antPathMatcher.setCaseSensitive(false);
-			return new AuthSecurityFilter(openUrlProperties, buildAuthServiceClient, antPathMatcher,
-					new HttpSessionSecurityContextRepository());
+			return new AuthSecurityFilter(openUrlProperties, buildAuthServiceClient, antPathMatcher);
+		}
+
+		@Bean
+		@Primary
+		CustomAuthProvider customAuthProvider() {
+			return new CustomAuthProvider();
 		}
 
 		@Bean
@@ -106,44 +114,54 @@ public class AuthSystemAutoconfiguration {
 	}
 	@Configuration
 	@Order(Ordered.HIGHEST_PRECEDENCE)
-	@Conditional(SecuredCondition.class)
+	@EnableGlobalMethodSecurity(prePostEnabled = true)
 	@RequiredArgsConstructor
-	public class SecurityConfiguration {
+	@Conditional(SecuredCondition.class)
+	class AuthSystemWebSecurityConfig {
 		private final AuthEntryPoint authEntryPoint;
 		private final AuthSecurityFilter authSecurityFilter;
 		private final OpenUrlProperties openUrlProperties;
+		private final CustomAuthProvider authProvider;
 		@Bean
 		public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			var whitelistedEndpoints = openUrlProperties.getOpenUrls().toArray(String[]::new);
-			var security = http.sessionManagement()
+			var httpSecurity = http.sessionManagement()
 					.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 					.and()
 					.exceptionHandling().authenticationEntryPoint(authEntryPoint)
 					.and()
-					.addFilterBefore(authSecurityFilter, BasicAuthenticationFilter.class)
 					.csrf().disable()
 					.cors().disable()
 					.formLogin().disable()
 					.httpBasic().disable();
 
-			security
+			httpSecurity
 					.authorizeRequests().antMatchers(whitelistedEndpoints)
 					.permitAll()
 					.and()
 					.authorizeRequests().anyRequest()
 					.authenticated();
-			return http.build();
+			httpSecurity.
+					addFilterBefore(authSecurityFilter, UsernamePasswordAuthenticationFilter.class);
+			return httpSecurity.build();
 		}
 
+		@Bean
+		AuthenticationManager authenticationManager(
+				AuthenticationConfiguration authenticationConfiguration) throws Exception {
+			return authenticationConfiguration.getAuthenticationManager();
+		}
+
+		@Autowired
+		void registerProvider(AuthenticationManagerBuilder auth) {
+			auth.authenticationProvider(authProvider);
+		}
 	}
 
 	@Configuration
 	@Conditional(NotSecuredCondition.class)
 	@RequiredArgsConstructor
 	public class NonSecurityConfiguration {
-		private final AuthEntryPoint authEntryPoint;
-		private final AuthSecurityFilter authSecurityFilter;
-		private final OpenUrlProperties openUrlProperties;
 		@Bean
 		public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			http
